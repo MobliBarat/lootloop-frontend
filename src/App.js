@@ -42,6 +42,7 @@ const bundesliga1Games = [
 ];
 
 
+
 // Modal-Komponente für "Wetten geschlossen"
 const BettingClosedModal = ({ isOpen }) => {
     if (!isOpen) return null;
@@ -180,13 +181,14 @@ const App = () => {
     const sendDataToServer = useCallback(async (data) => {
         try {
             const renderServerUrl = 'https://mein-gewinnspiel-server.onrender.com';
-            const apiEndpoint = '/gewinn-nachricht';
+            // KORRIGIERT: Neuer API-Endpunkt für Spieltipps
+            const apiEndpoint = '/api/game-tips'; 
 
             const response = await fetch(`${renderServerUrl}${apiEndpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                // Sende das gesamte Datenobjekt als JSON-String im 'nachricht'-Feld
-                body: JSON.stringify({ nachricht: JSON.stringify(data) })
+                // KORRIGIERT: Sende das gesamte 'data'-Objekt direkt als JSON, nicht als String in 'nachricht'
+                body: JSON.stringify(data) 
             });
 
             if (!response.ok) {
