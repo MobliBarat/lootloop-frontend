@@ -42,7 +42,6 @@ const bundesliga1Games = [
 ];
 
 
-
 // Modal-Komponente für "Wetten geschlossen"
 const BettingClosedModal = ({ isOpen }) => {
     if (!isOpen) return null;
@@ -62,7 +61,64 @@ const BettingClosedModal = ({ isOpen }) => {
 
 // Ranglisten-Modal
 const LeaderboardModal = ({ isOpen, onClose, leaderboardData, teamLogos }) => {
+    // State für die aktuelle Seite pro Spiel
+    const [currentPages, setCurrentPages] = useState({}); // { gameId: currentPage }
+    const playersPerPage = 10;
+
+    // Swipe-States
+    const [touchStartX, setTouchStartX] = useState(0);
+    const [touchEndX, setTouchEndX] = useState(0);
+    const swipeThreshold = 50; // Mindestdistanz für einen Wisch (in Pixeln)
+
+    // Initialisiere die Seiten für jedes Spiel, wenn das Modal geöffnet wird
+    React.useEffect(() => {
+        if (isOpen) {
+            const initialPages = {};
+            leaderboardData.forEach(gameEntry => {
+                initialPages[gameEntry.gameId] = 1; // Starte jede Rangliste auf Seite 1
+            });
+            setCurrentPages(initialPages);
+        }
+    }, [isOpen, leaderboardData]);
+
+    // WICHTIG: Der bedingte Return muss NACH den Hook-Aufrufen stehen.
     if (!isOpen) return null;
+
+    const handlePageChange = (gameId, newPage) => {
+        setCurrentPages(prev => ({ ...prev, [gameId]: newPage }));
+    };
+
+    // Touch-Event-Handler für Swipe
+    const handleTouchStart = (e) => {
+        setTouchStartX(e.touches[0].clientX);
+        setTouchEndX(0); // Reset end position
+    };
+
+    const handleTouchMove = (e) => {
+        setTouchEndX(e.touches[0].clientX);
+    };
+
+    const handleTouchEnd = (gameId, currentPage, totalPages) => {
+        if (touchEndX === 0) return; // No movement detected
+
+        const diff = touchStartX - touchEndX;
+
+        if (diff > swipeThreshold) {
+            // Swipe Left (Gehe zur nächsten Seite)
+            if (currentPage < totalPages) {
+                handlePageChange(gameId, currentPage + 1);
+            }
+        } else if (diff < -swipeThreshold) {
+            // Swipe Right (Gehe zur vorherigen Seite)
+            if (currentPage > 1) {
+                handlePageChange(gameId, currentPage - 1);
+            }
+        }
+        // Reset touch positions
+        setTouchStartX(0);
+        setTouchEndX(0);
+    };
+
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
@@ -76,52 +132,86 @@ const LeaderboardModal = ({ isOpen, onClose, leaderboardData, teamLogos }) => {
                 </button>
                 <h2 className="text-3xl font-bold text-white mb-6">🏆 Rangliste 🏆</h2>
                 
-                {leaderboardData.map((gameEntry, gameIndex) => (
-                    <div key={gameEntry.gameId} className="mb-8 p-4 bg-gray-700 rounded-lg shadow-inner">
-                        <h3 className="text-xl font-bold text-white mb-4 flex items-center justify-center">
-                            {/* Logos für das Spiel im Header */}
-                            <img
-                                src={teamLogos[gameEntry.team1]}
-                                alt={`${gameEntry.team1} Logo`}
-                                className="w-8 h-8 rounded-full mr-2"
-                                onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/60x60/666666/FFFFFF?text=?" }}
-                            />
-                            {gameEntry.team1} vs {gameEntry.team2}
-                            <img
-                                src={teamLogos[gameEntry.team2]}
-                                alt={`${gameEntry.team2} Logo`}
-                                className="w-8 h-8 rounded-full ml-2"
-                                onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/60x60/666666/FFFFFF?text=?" }}
-                            />
-                        </h3>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full bg-gray-600 rounded-lg overflow-hidden">
-                                <thead>
-                                    <tr className="bg-gray-500 text-gray-200 uppercase text-sm leading-normal">
-                                        <th className="py-2 px-4 text-left">Platz</th>
-                                        <th className="py-2 px-4 text-left">Name</th>
-                                        <th className="py-2 px-4 text-right">Punkte</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="text-gray-300 text-sm font-light">
-                                    {gameEntry.players.map((player, playerIndex) => (
-                                        <tr key={playerIndex} className="border-b border-gray-500 hover:bg-gray-500">
-                                            <td className="py-2 px-4 text-left whitespace-nowrap">
-                                                <span className="font-bold">{player.rank}.</span>
-                                            </td>
-                                            <td className="py-2 px-4 text-left">
-                                                <span>{player.name}</span>
-                                            </td>
-                                            <td className="py-2 px-4 text-right">
-                                                <span>{player.score}</span>
-                                            </td>
+                {leaderboardData.map((gameEntry) => {
+                    const currentPage = currentPages[gameEntry.gameId] || 1;
+                    const totalPages = Math.ceil(gameEntry.players.length / playersPerPage);
+                    const startIndex = (currentPage - 1) * playersPerPage;
+                    const endIndex = startIndex + playersPerPage;
+                    const playersToDisplay = gameEntry.players.slice(startIndex, endIndex);
+
+                    return (
+                        <div
+                            key={gameEntry.gameId}
+                            className="mb-8 p-4 bg-gray-700 rounded-lg shadow-inner"
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={() => handleTouchEnd(gameEntry.gameId, currentPage, totalPages)}
+                        >
+                            <h3 className="text-xl font-bold text-white mb-4 flex items-center justify-center">
+                                {/* Logos für das Spiel im Header */}
+                                <img
+                                    src={teamLogos[gameEntry.team1]}
+                                    alt={`${gameEntry.team1} Logo`}
+                                    className="w-8 h-8 rounded-full mr-2"
+                                    onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/60x60/666666/FFFFFF?text=?" }}
+                                />
+                                {gameEntry.team1} vs {gameEntry.team2}
+                                <img
+                                    src={teamLogos[gameEntry.team2]}
+                                    alt={`${gameEntry.team2} Logo`}
+                                    className="w-8 h-8 rounded-full ml-2"
+                                    onError={(e) => { e.target.onerror = null; e.target.src="https://placehold.co/60x60/666666/FFFFFF?text=?" }}
+                                />
+                            </h3>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full bg-gray-600 rounded-lg overflow-hidden">
+                                    <thead>
+                                        <tr className="bg-gray-500 text-gray-200 uppercase text-sm leading-normal">
+                                            <th className="py-2 px-4 text-left">Platz</th>
+                                            <th className="py-2 px-4 text-left">Name</th>
+                                            <th className="py-2 px-4 text-right">Punkte</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="text-gray-300 text-sm font-light">
+                                        {playersToDisplay.map((player, playerIndex) => (
+                                            <tr key={playerIndex} className="border-b border-gray-500 hover:bg-gray-500">
+                                                <td className="py-2 px-4 text-left whitespace-nowrap">
+                                                    <span className="font-bold">{player.rank}.</span>
+                                                </td>
+                                                <td className="py-2 px-4 text-left">
+                                                    <span>{player.name}</span>
+                                                </td>
+                                                <td className="py-2 px-4 text-right">
+                                                    <span>{player.score}</span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {/* Paginierungs-Kontrollen */}
+                            {totalPages > 1 && (
+                                <div className="flex justify-between items-center mt-4 text-white">
+                                    <button
+                                        onClick={() => handlePageChange(gameEntry.gameId, currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="px-4 py-2 bg-blue-600 rounded-full hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400"
+                                    >
+                                        Vorherige
+                                    </button>
+                                    <span>Seite {currentPage} von {totalPages}</span>
+                                    <button
+                                        onClick={() => handlePageChange(gameEntry.gameId, currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className="px-4 py-2 bg-blue-600 rounded-full hover:bg-blue-700 disabled:bg-gray-600 disabled:text-gray-400"
+                                    >
+                                        Nächste
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
 
                 <button
                     onClick={onClose}
@@ -162,16 +252,27 @@ const App = () => {
 
     // Rangliste (manuell konfigurierbar pro Spiel)
     const initialLeaderboardData = useCallback(() => {
-        return bundesliga1Games.map(game => ({
-            gameId: game.id,
-            team1: game.team1,
-            team2: game.team2,
-            players: [
-                { rank: 1, name: `Spieler ${game.id.split('-')[1]}A`, score: Math.floor(Math.random() * 500) + 1000 },
-                { rank: 2, name: `Spieler ${game.id.split('-')[1]}B`, score: Math.floor(Math.random() * 500) + 500 },
-                { rank: 3, name: `Spieler ${game.id.split('-')[1]}C`, score: Math.floor(Math.random() * 500) + 100 },
-            ]
-        }));
+        return bundesliga1Games.map(game => {
+            const players = [];
+            for (let i = 1; i <= 100; i++) { // Generiere 100 Spieler für 10 Seiten à 10 Plätze
+                players.push({
+                    rank: i,
+                    name: `Spieler ${game.id.split('-')[1]}${String.fromCharCode(64 + i)}`, // A, B, C...
+                    score: Math.floor(Math.random() * (1000 - 100 + 1)) + 100 + (100 - i) * 10 // Absteigende Punkte
+                });
+            }
+            // Sortiere die Spieler nach Punkten absteigend und weise neue Ränge zu
+            players.sort((a, b) => b.score - a.score);
+            players.forEach((player, index) => {
+                player.rank = index + 1;
+            });
+            return {
+                gameId: game.id,
+                team1: game.team1,
+                team2: game.team2,
+                players: players
+            };
+        });
     }, []);
 
     const [leaderboardData] = useState(initialLeaderboardData); // setLeaderboardData entfernt, da es nicht verwendet wird
